@@ -46,7 +46,7 @@ class RequestLimiter
         $this->_maxRequestCount = $maxRequests ?? self::DEFAULT_MAX_REQUESTS;
         $requestInterval = $requestIntervalSeconds ?? self::DEFAULT_REQUEST_INTERVAL;
 
-        $this->_storageKey = $maxRequests . '_' . $requestInterval;
+        $this->_storageKey = $this->_maxRequestCount  . '_' . $requestInterval;
         $this->_restoreState($requestInterval);
     }
 
@@ -96,10 +96,11 @@ class RequestLimiter
     /**
      * @param RequestInterface $request
      * @param array $options
+     * @param bool $isChangeStatement
      * @return bool
      * @throws \Exception
      */
-    public function canRequest(RequestInterface $request, array $options = []) : bool
+    public function canRequest(RequestInterface $request, array $options = [], $isChangeStatement = true) : bool
     {
         if (!$this->matches($this->_getHostFromRequestAndOptions($request, $options)))
         {
@@ -111,8 +112,11 @@ class RequestLimiter
             return false;
         }
 
-        $this->_increment();
-        $this->_save();
+        if ($isChangeStatement)
+        {
+            $this->_increment();
+            $this->_save();
+        }
 
         return true;
     }
@@ -135,20 +139,21 @@ class RequestLimiter
     {
         $uri = $options['base_uri'] ?? $request->getUri();
 
-        return $this->_buildHostUrl($uri);
+        return $this->_buildHostUrl($uri, $options);
     }
 
     /**
      * @param Uri $uri
+     * @param array $options
      * @return string
      */
-    private function _buildHostUrl(Uri $uri) : string
+    private function _buildHostUrl(Uri $uri, array $options = []) : string
     {
         $host = $uri->getHost();
         $scheme = $uri->getScheme();
         if (!empty($host) && !empty($scheme))
         {
-            $host = $scheme . '://' . $host;
+            $host = $scheme . '://' . $host . (isset($options['base_uri']) ? $uri->getPath() : '');
         } else
         {
             $host = $uri->getPath();
